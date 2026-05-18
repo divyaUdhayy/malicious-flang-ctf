@@ -22,17 +22,23 @@ db.serialize(() => {
     )
   `);
 
-  // Insert a test user
-  // password is password
+  // password is password123
   db.run(`
     INSERT OR IGNORE INTO  users (username, password, salt)
-    VALUES ('admin', 'de4c58a4d8593482f30c68286327d39c4bf1feb7883cc3a3688e91c018e8c01a', '7/l5SRzaB0nQEiQGc8LEJw==')
+    VALUES ('adminUser2', 'de4c58a4d8593482f30c68286327d39c4bf1feb7883cc3a3688e91c018e8c01a', '7/l5SRzaB0nQEiQGc8LEJw==')
+  `);
+
+  // IHateChoosingPasswords
+  db.run(`
+    INSERT OR IGNORE INTO  users (username, password, salt)
+    VALUES ('someGuy', 'aa05263ff3ce8a90f466257a135697fa849aa462170f0c9207772414b49f76a6', 'SWjfvdGGGhTPDuSfstmC4w==')
   `);
 });
 
 // Import routes
 const userRoutes = require("./routes/user");
 const updateRoutes = require("./routes/updates")
+const viewRoutes= require("./routes/view")
 
 // Pass db into routes
 app.use("/user", (req, res, next) => {
@@ -43,6 +49,10 @@ app.use("/user", (req, res, next) => {
 app.use("/updates", (req, res, next) => {
   next();
 }, updateRoutes);
+
+app.use("/view", (req, res, next) => {
+  next();
+}, viewRoutes);
 
 // Basic route
 app.get("/", (req, res) => {

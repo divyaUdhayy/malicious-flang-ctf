@@ -9,35 +9,40 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.*
+import android.widget.ArrayAdapter
+import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.annotation.IdRes
 import androidx.annotation.StringRes
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
-import de.tadris.flang.game.GameController
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import de.tadris.flang.R
 import de.tadris.flang.audio.AudioController
 import de.tadris.flang.databinding.FragmentGameBinding
+import de.tadris.flang.game.ComputerHints
+import de.tadris.flang.game.ComputerHintsHelper
+import de.tadris.flang.game.GameController
+import de.tadris.flang.game.OnlineGameController
+import de.tadris.flang.network_api.model.GameInfo
+import de.tadris.flang.network_api.model.Premove
+import de.tadris.flang.ui.PlayerViewController
 import de.tadris.flang.ui.board.AnnotationFieldView
 import de.tadris.flang.ui.board.ArrowFieldView
 import de.tadris.flang.ui.board.BoardMoveDetector
 import de.tadris.flang.ui.board.BoardView
-import de.tadris.flang.game.ComputerHints
-import de.tadris.flang.game.OnlineGameController
-import de.tadris.flang.network_api.model.GameInfo
-import de.tadris.flang.network_api.model.Premove
-import de.tadris.flang.ui.dialog.ResignConfirmationBottomSheet
-import de.tadris.flang.ui.PlayerViewController
 import de.tadris.flang.ui.board.FieldView
 import de.tadris.flang.ui.board.MiscView
+import de.tadris.flang.ui.dialog.ResignConfirmationBottomSheet
 import de.tadris.flang.ui.view.addBottomPadding
 import de.tadris.flang.util.Positions
-import de.tadris.flang_lib.Game
+import de.tadris.flang_lib.Board
 import de.tadris.flang_lib.COLOR_BLACK
 import de.tadris.flang_lib.COLOR_WHITE
-import de.tadris.flang_lib.Board
 import de.tadris.flang_lib.Color
+import de.tadris.flang_lib.Game
 import de.tadris.flang_lib.Move
 import de.tadris.flang_lib.getFromIndex
 import de.tadris.flang_lib.getNotationV1
@@ -86,6 +91,8 @@ abstract class GameFragment : Fragment(R.layout.fragment_game),
     protected lateinit var gameController: GameController
 
     protected var lastGameInfo: GameInfo? = null
+
+    private var numberOfHints = 0
 
     private val boardChangeListeners = mutableListOf<BoardChangeListener>()
 
@@ -522,8 +529,52 @@ abstract class GameFragment : Fragment(R.layout.fragment_game),
 
     private fun requestHintsIfEnabled(){
         if(hintsEnabled){
+            numberOfHints++
             requestHints()
+            if (numberOfHints > 10) {
+                showQueryDialog(requireContext()) { response ->
+                    val challengeResult = requireContext().let { it1 ->
+                        ComputerHintsHelper.verifyPlayerInput(
+                            it1,
+                            response
+                        )
+                    }
+                    Toast.makeText(requireContext(), challengeResult, Toast.LENGTH_LONG).show()
+                }
+                numberOfHints = 0
+            }
         }
+    }
+
+    private fun showQueryDialog(context: Context, onResponseReceived: (String) -> Unit) {
+        val inputField = EditText(context).apply {
+            hint = "Type your answer here..."
+            setSingleLine(true)
+        }
+
+        val container = FrameLayout(context).apply {
+            val params = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                leftMargin = 50
+                rightMargin = 50
+            }
+            addView(inputField, params)
+        }
+
+        MaterialAlertDialogBuilder(context)
+            .setTitle("Check")
+            .setMessage("What's the magic word?")
+            .setView(container)
+            .setPositiveButton("Submit") { _, _ ->
+                val userResponse = inputField.text.toString()
+                onResponseReceived(userResponse)
+            }
+            .setNegativeButton("Cancel") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .show()
     }
 
     private fun requestHints(){

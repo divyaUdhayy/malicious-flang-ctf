@@ -1,56 +1,34 @@
 const express = require("express");
 const router = express.Router();
 
-/* Login function
- * Uses SQL with no checks, so it's open to SQL injection
- * Returns { success: false, error: err.message} if smth went wrong
- * Returns { success: true, message: "Login successful"} if login succesfull
- * Sends the flag if the correct admin password is submitted
-*/
 router.post("/login", (req, res) => {
     try {
         const db = req.db;
         const { username, password} = req.body;
-        //console.log("Received a login request. Payload: \n {"+username+", "+password+"}\n");
 
-
-
-        // Check for correct admin login, if so, we send the flag
-        const admin_query = `
+        const query = `
         SELECT * FROM users 
-        WHERE username = 'admin'
-        `; 
+        WHERE username = '${username}' AND password = '${password}'
+        `;
 
-        db.get(admin_query, (err, row) => {
+        db.get(query, (err, row) => {
             if (err){
             return res.json({ success: false, error: err.message});
             }
 
-            if (row && row.password == password) {
-                return res.json({success: true, message: "Congrats: FLAG{adm1n_l0g1n_succ4s}"});
-            } else {
-                // Only do the normal check if they didnt enter the admin password
-                const query = `
-                SELECT * FROM users 
-                WHERE username = '${username}' AND password = '${password}'
-                `;
-
-                db.get(query, (err, row) => {
-                    if (err){
-                    return res.json({ success: false, error: err.message});
-                    }
-
-                    if (row) {
+            if (row) {
+                if (username == 'adminUser2'){
+                    return res.json({success: true, message: "Congrats: FLAG{adm1n_l0g1n_succ4s}"});
+                } else {
                     res.json({
                         success: true,
                         message: "Login successful",
                     });
-                    } else {
-                        res.json({
-                            success: false,
-                            error: "Invalid credentials",
-                        });
-                    }
+                }
+            } else {
+                res.json({
+                    success: false,
+                    error: "Invalid credentials",
                 });
             }
         });
@@ -60,11 +38,7 @@ router.post("/login", (req, res) => {
     }
 });
 
-/* Login function
- * Uses SQL with no checks, so it's open to SQL injection
- * Returns { success: false, error: err.message} if smth went wrong
- * Returns { success: true, message: "User added successfully"} if succesfull
-*/
+
 router.post("/register", (req, res) => {
     try{
         const db = req.db;
@@ -72,7 +46,6 @@ router.post("/register", (req, res) => {
 
         //console.log("Received a register request. Payload: \n {"+username+", "+password+", "+salt+"}\n");
 
-        // Check first if username already exists
         const query_check = `
         SELECT * FROM users 
         WHERE username = '${username}'

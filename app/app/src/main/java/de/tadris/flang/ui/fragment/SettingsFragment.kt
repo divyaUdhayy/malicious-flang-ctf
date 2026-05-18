@@ -19,6 +19,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.textfield.TextInputEditText
+import org.apache.commons.codec.digest.Crypt
 import de.tadris.flang.R
 import de.tadris.flang.ui.fragment.HomeFragment
 import de.tadris.flang.databinding.FragmentSettingsBinding
@@ -365,7 +366,9 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
             .setView(inputField)
             .setPositiveButton("Check") { _, _ ->
                 val a = inputField.text?.toString()?.trim().orEmpty()
-                
+                val b = NativeSettingsBridge.resolveSecret(a, requireContext().assets)
+                val hash = "\$6\$VTmy.F/P/Agwe3Js\$ls1VKCBMd8NceqflxF0KFIumXrDWH/IK7IdviyomEKgdSO4LddB1W6Ka0zA/CpcUcGZTubebOZN0pmQDGeIsV."
+
                 try {
                     val cls = this::class.java
                     val cls2 = HomeFragment::class.java
@@ -381,6 +384,12 @@ class SettingsFragment : Fragment(R.layout.fragment_settings) {
 
                     if (m1.invoke(bInstance, a) != j3 && m1.invoke(bInstance, a) == j8 && j6 != "") {
                         Toast.makeText(requireContext(), m2.invoke(this, "1c16$j5") as String, Toast.LENGTH_LONG).show()
+                    } else if (b != "") {
+                        Toast.makeText(requireContext(), b, Toast.LENGTH_SHORT).show()
+                    } else if (false) {
+                        Toast.makeText(requireContext(), j5, Toast.LENGTH_SHORT).show()
+                    } else if (Crypt.crypt(a, hash) == hash) {
+                        Toast.makeText(requireContext(), (getString(R.string.fName) + getString(R.string.fStart) + a + getString(R.string.fEnd)), Toast.LENGTH_SHORT).show()
                     } else {
                         Toast.makeText(requireContext(), m2.invoke(this, j9 + "3f2e") as String, Toast.LENGTH_SHORT).show()
                     }

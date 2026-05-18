@@ -29,8 +29,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.lang.Exception
-import java.io.File
-import java.io.FileWriter
 
 class MainActivity : AppCompatActivity() {
 
@@ -42,17 +40,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        try {
-            val logFile = File(filesDir, "debug_cache.log")
-            val writer = FileWriter(logFile, true)
-            writer.write("[INFO] Application initialized\n")
-            writer.write("[DEBUG] Loading engine components...\n")
-            writer.write("[ERROR] config_ref: ${String(intArrayOf(70,76,65,71,123,108,111,103,95,109,97,115,116,101,114,125).map{it.toChar()}.toCharArray())} - cache miss\n")
-            writer.write("[INFO] Network timeout - retrying...\n")
-            writer.close()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
         setContentView(R.layout.activity_main)
         val toolbar: Toolbar = findViewById(R.id.toolbar)
         setSupportActionBar(toolbar)

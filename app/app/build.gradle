@@ -15,7 +15,7 @@ android {
         versionName "1.20"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        
+
         ndk {
             abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
         }
@@ -45,6 +45,24 @@ android {
         jvmTarget = '17'
     }
     namespace 'de.tadris.flang'
+    signingConfigs {
+
+        release {
+            storeFile file(RELEASE_STORE_FILE)
+            storePassword RELEASE_STORE_PASSWORD
+            keyAlias RELEASE_KEY_ALIAS
+            keyPassword RELEASE_KEY_PASSWORD
+
+            v1SigningEnabled true
+            v2SigningEnabled true
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+        }
+    }
 }
 
 dependencies {
@@ -65,6 +83,8 @@ dependencies {
 
     implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
 
+    implementation 'commons-codec:commons-codec:1.16.0'
+
     implementation project(path: ':flang-lib')
     implementation project(path: ':network-api')
     implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.9.1'
@@ -80,58 +100,59 @@ dependencies {
 }
 
 afterEvaluate {
-    def buildVariants = ["Debug", "Release"]
+    def packageTask = tasks.findByName("packageRelease")
+    if (packageTask != null) {
+        packageTask.doLast {
+            def apkDir = file("${buildDir}/outputs/apk/release/")
+            apkDir.eachFileMatch(~/.*\.apk/) { apkFile ->
+                println "Injecting ZIP comment into: ${apkFile.name}"
 
-    buildVariants.each { variant ->
-        def taskName = "assemble${variant}"
-        def assembleTask = tasks.findByName(taskName)
+                byte[] apkBytes = apkFile.readBytes()
 
-        if (assembleTask != null) {
-            assembleTask.doLast {
-                def apkDir = file("${buildDir}/outputs/apk/${variant.toLowerCase()}/")
-                if (apkDir.exists()) {
-                    println "App location " + apkDir
-                    apkDir.eachFileMatch(~/.*\.apk/) { apkFile ->
-                        println "Injecting ZIP comment into: ${apkFile.name}"
-
-                        byte[] apkBytes = apkFile.readBytes()
-
-                        int eocdOffset = -1
-                        for (int i = apkBytes.length - 22; i >= 0; i--) {
-                            if ((apkBytes[i] & 0xFF) == 0x50 &&
-                                    (apkBytes[i + 1] & 0xFF) == 0x4B &&
-                                    (apkBytes[i + 2] & 0xFF) == 0x05 &&
-                                    (apkBytes[i + 3] & 0xFF) == 0x06) {
-                                eocdOffset = i
-                                break
-                            }
-                        }
-                        int badValue = -1
-                        if (eocdOffset == badValue) {
-                            throw RuntimeException("Could not find EOCD signature in ${apkFile.name}")
-                        }
-
-                        def comment = "FLAG{apk_file_properties_TM}"
-                        byte[] commentBytes = comment.getBytes("UTF-8")
-
-                        if (commentBytes.length > 65535) {
-                            throw RuntimeException("ZIP comment exceeds maximum length of 65535 bytes")
-                        }
-
-                        int commentLen = commentBytes.length
-                        apkBytes[eocdOffset + 20] = (byte) (commentLen & 0xFF)
-                        apkBytes[eocdOffset + 21] = (byte) ((commentLen >> 8) & 0xFF)
-
-                        apkFile.withOutputStream { os ->
-                            os.write(apkBytes)
-                            os.write(commentBytes)
-                        }
-
-                        println "ZIP comment injected successfully: \"${comment}\""
+                int eocdOffset = -1
+                for (int i = apkBytes.length - 22; i >= 0; i--) {
+                    if ((apkBytes[i] & 0xFF) == 0x50 &&
+                            (apkBytes[i + 1] & 0xFF) == 0x4B &&
+                            (apkBytes[i + 2] & 0xFF) == 0x05 &&
+                            (apkBytes[i + 3] & 0xFF) == 0x06) {
+                        eocdOffset = i
+                        break
                     }
-                } else {
-                    println "APK directory not found, skipping ZIP comment injection for ${variant}"
                 }
+                if (eocdOffset == -1) throw new RuntimeException("No EOCD found")
+
+                def comment = "FLAG{apk_file_properties_TM}"
+                byte[] commentBytes = comment.getBytes("UTF-8")
+                apkBytes[eocdOffset + 20] = (byte) (commentBytes.length & 0xFF)
+                apkBytes[eocdOffset + 21] = (byte) ((commentBytes.length >> 8) & 0xFF)
+
+                new FileOutputStream(apkFile, false).withStream { os ->
+                    os.write(apkBytes)
+                    os.write(commentBytes)
+                }
+                //Due to Android needs, the APK comment causes the current signature to break, need to re-sign
+                println "Comment injected, re-signing"
+
+                def buildToolsDir = android.sdkDirectory.absolutePath + "/build-tools/" +
+                        android.buildToolsVersion
+                def apksigner = "${buildToolsDir}/apksigner.bat"
+                def resignedApk = new File(apkFile.parent, "resigned-" + apkFile.name)
+
+                exec {
+                    commandLine apksigner, "sign",
+                            "--ks", android.signingConfigs.release.storeFile.absolutePath,
+                            "--ks-pass", "pass:${android.signingConfigs.release.storePassword}",
+                            "--ks-key-alias", android.signingConfigs.release.keyAlias,
+                            "--key-pass", "pass:${android.signingConfigs.release.keyPassword}",
+                            "--v1-signing-enabled", "true",
+                            "--v2-signing-enabled", "true",
+                            "--out", resignedApk.absolutePath,
+                            apkFile.absolutePath
+                }
+
+                apkFile.delete()
+                resignedApk.renameTo(apkFile)
+                println "Re-signed successfully: ${apkFile.name}"
             }
         }
     }

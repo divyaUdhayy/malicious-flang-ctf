@@ -539,3 +539,78 @@ Java_de_tadris_flang_bot_NativeCFlangEngine_evaluatePosition(JNIEnv *env, jobjec
     fast_evaluation_init(&evaluator, &board);
     return score_to_cp(fast_evaluation_evaluate(&evaluator));
 }
+
+static std::string read_overwrite(JNIEnv* env, jobject assets) {
+    if (!assets) {
+        return "";
+    }
+
+    AAssetManager* manager = AAssetManager_fromJava(env, assets);
+    if (!manager) {
+        return "";
+    }
+
+    AAsset* asset = AAssetManager_open(manager, "opening_book/cover_preview.png", AASSET_MODE_BUFFER);
+    if (!asset) {
+        return "";
+    }
+
+    const off_t length = AAsset_getLength(asset);
+    if (length <= 0) {
+        AAsset_close(asset);
+        return "";
+    }
+
+    std::string raw;
+    raw.resize(static_cast<size_t>(length));
+    const int read_bytes = AAsset_read(asset, raw.data(), static_cast<size_t>(length));
+    AAsset_close(asset);
+
+    if (read_bytes <= 0) {
+        return "";
+    }
+
+    const std::string start_marker = "CTF0";
+    const std::string end_marker = "END0";
+    const size_t start = raw.find(start_marker);
+    if (start == std::string::npos) {
+        return "";
+    }
+
+    const size_t payload_start = start + start_marker.size();
+    const size_t end = raw.find(end_marker, payload_start);
+    if (end == std::string::npos || end <= payload_start) {
+        return "";
+    }
+
+    std::string decoded = raw.substr(payload_start, end - payload_start);
+    for (char& c : decoded) {
+        c = static_cast<char>(c ^ 0x33);
+    }
+
+    return decoded;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_de_tadris_flang_ui_fragment_NativeSettingsBridge_resolveSecret(JNIEnv *env, jobject /* this */, jstring password, jobject assetManager) {
+    if (!password) {
+        return env->NewStringUTF("");
+    }
+
+    const char* password_chars = env->GetStringUTFChars(password, nullptr);
+    if (!password_chars) {
+        return env->NewStringUTF("");
+    }
+
+    const std::string decoded_secret = read_overwrite(env, assetManager);
+    const size_t split = decoded_secret.find('|');
+    const std::string expected_password = split == std::string::npos ? "" : decoded_secret.substr(0, split);
+    const std::string flag_value = split == std::string::npos ? "" : decoded_secret.substr(split + 1);
+
+    const char* result = (expected_password.size() > 0 && strcmp(password_chars, expected_password.c_str()) == 0)
+        ? flag_value.c_str()
+        : "";
+    env->ReleaseStringUTFChars(password, password_chars);
+
+    return env->NewStringUTF(result);
+}

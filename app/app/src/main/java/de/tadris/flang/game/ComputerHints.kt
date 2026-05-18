@@ -5,11 +5,10 @@ import de.tadris.flang.bot.NativeCFlangEngine
 import de.tadris.flang.network.DataRepository
 import de.tadris.flang.network_api.model.ComputerResult
 import de.tadris.flang.network_api.model.ComputerResults
-import de.tadris.flang_lib.Game
-import de.tadris.flang_lib.bot.evaluation.MoveEvaluation
-import de.tadris.flang_lib.bot.fast.FastFlangBot
 import de.tadris.flang_lib.Board
+import de.tadris.flang_lib.Game
 import de.tadris.flang_lib.Move
+import de.tadris.flang_lib.bot.evaluation.MoveEvaluation
 import de.tadris.flang_lib.evaluationNumber
 import kotlin.concurrent.thread
 import kotlin.math.absoluteValue
@@ -17,8 +16,9 @@ import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sqrt
 
+
 class ComputerHints(private val listener: HintListener) {
-    
+
     private var count = 0
 
     fun requestHints(game: Game){
@@ -48,7 +48,7 @@ class ComputerHints(private val listener: HintListener) {
     private fun getHints(board: Board, results: ComputerResults): List<ComputerHint> {
         val bestResultsPerAlgorithm = results.results.groupBy { it.name }.values
                 .mapNotNull { result -> result.maxByOrNull { it.depth } }
-        return bestResultsPerAlgorithm.map { getHint(board, it) }.flatten()
+        return bestResultsPerAlgorithm.flatMap { getHint(board, it) }
     }
     
     private fun getHint(board: Board, result: ComputerResult): List<ComputerHint> {
@@ -57,9 +57,9 @@ class ComputerHints(private val listener: HintListener) {
         return if(moves.isNotEmpty()){
             val goodMoves = moves.filter { if(board.atMove) it.evaluation > -100 else it.evaluation < 100 }
             if(goodMoves.size > 1){
-                val sumEval = goodMoves.sumByDouble { it.evaluation }
+                val sumEval = goodMoves.sumOf { it.evaluation }
                 val avgEval = sumEval / goodMoves.size
-                val variance2 = goodMoves.sumByDouble { (it.evaluation - avgEval).pow(2) }
+                val variance2 = goodMoves.sumOf { (it.evaluation - avgEval).pow(2) }
                 val variance = sqrt(variance2)
                 val maxDiff = variance * 0.15
                 val bestEval = goodMoves.first().evaluation

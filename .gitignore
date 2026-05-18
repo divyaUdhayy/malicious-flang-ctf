@@ -24,3 +24,5 @@ app/local.properties
 server/users.db
 server/node_modules*
 .vscode/
+
+server/files/*.tar
